@@ -1,0 +1,39 @@
+name: CI - PHP
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  testes:
+    name: Testes e Qualidade de Codigo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o codigo do repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml
+          coverage: none
+
+      - name: Cache das dependencias do Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Rodar testes com PHPUnit
+        run: ./vendor/bin/phpunit --testdox
+
+      - name: Analise estatica com PHPStan
+        run: ./vendor/bin/phpstan analyse src --level=8
