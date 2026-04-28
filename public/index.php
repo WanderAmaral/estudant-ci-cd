@@ -16,6 +16,6 @@ $resultados = [
 header('Content-Type: application/json');
 echo json_encode([
     'status'     => 'ok',
-    'mensagem'   => 'CI/CD com PHP funcionando!',
+    'mensagem'   => 'Meu primeiro pipeline CI/CD funcionando!',
     'resultados' => $resultados,
 ]);
