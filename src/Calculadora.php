@@ -19,6 +19,11 @@ class Calculadora
         return $a * $b;
     }
 
+    public function equacao(int $a, int $b): int
+    {
+        return ($a + $b) * ($a - $b);
+    }
+
     public function dividir(int $a, int $b): float
     {
         if ($b === 0) {

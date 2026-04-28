@@ -17,7 +17,7 @@ class CalculadoraTest extends TestCase
     public function test_soma_dois_numeros(): void
     {
         $resultado = $this->calc->somar(2, 3);
-        $this->assertSame(5, $resultado);
+        $this->assertSame(99, $resultado);
     }
 
     public function test_subtrai_dois_numeros(): void
