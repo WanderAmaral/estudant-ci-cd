@@ -1,6 +1,6 @@
 # Estudando CI/CD com PHP
 
-Projeto didatico para aprender **Continuous Integration e Continuous Delivery** com PHP usando GitHub Actions.
+Projeto didatico para aprender **Continuous Integration e Continuous Delivery** com PHP usando GitHub Actions e Render.
 
 ---
 
@@ -18,26 +18,25 @@ Projeto didatico para aprender **Continuous Integration e Continuous Delivery** 
 
 ---
 
-## Fluxo do Pipeline
+## Fluxo completo CI + CD
 
 ```
+voce edita o codigo
+        |
+        v
 git push origin main
         |
         v
-  GitHub Actions dispara
+GitHub Actions dispara
+        |
+   [CI] testes com PHPUnit    <- se falhar, para aqui
+   [CI] analise com PHPStan   <- se falhar, para aqui
         |
         v
-  Maquina Ubuntu limpa e criada
+   [CD] deploy no Render      <- so chega aqui se CI passou
         |
         v
-  [1] Checkout do codigo
-  [2] PHP 8.3 instalado
-  [3] composer install
-  [4] phpunit (testes)
-  [5] phpstan (analise estatica)
-        |
-        v
-  Verde = sucesso | Vermelho = falha (bloqueia o merge)
+app online em https://estudant-ci-cd.onrender.com
 ```
 
 ---
@@ -46,13 +45,17 @@ git push origin main
 
 ```
 estudant-ci-cd/
+├── public/
+│   └── index.php                <- ponto de entrada da aplicacao
 ├── src/
 │   └── Calculadora.php          <- codigo da aplicacao
 ├── tests/
 │   └── CalculadoraTest.php      <- testes automatizados (PHPUnit)
 ├── .github/
 │   └── workflows/
-│       └── ci.yml               <- pipeline do GitHub Actions
+│       └── ci.yml               <- pipeline CI + CD (GitHub Actions)
+├── Dockerfile                   <- container para deploy no Render
+├── render.yaml                  <- configuracao do Render
 ├── composer.json                <- dependencias PHP
 ├── phpunit.xml                  <- configuracao do PHPUnit
 ├── .gitignore
@@ -97,30 +100,79 @@ OK (5 tests, 6 assertions)
 ./vendor/bin/phpstan analyse src --level=8
 ```
 
+### Rodando a aplicacao localmente
+
+```bash
+php -S localhost:8080 -t public
+```
+
+Acesse: `http://localhost:8080`
+
 ---
 
 ## O Pipeline (ci.yml) explicado
 
 ```yaml
-name: CI - PHP          # nome que aparece no GitHub
+name: CI - PHP
 
 on:
-  push:                 # dispara quando voce faz git push
+  push:                     # dispara no git push
     branches: [ "main" ]
-  pull_request:         # dispara quando abre um Pull Request
+  pull_request:             # dispara ao abrir Pull Request
     branches: [ "main" ]
 
 jobs:
-  testes:
-    runs-on: ubuntu-latest    # maquina virtual Ubuntu
-
+  testes:                   # Job 1 - CI
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4           # baixa seu codigo
-      - uses: shivammathur/setup-php@v2     # instala o PHP
-      - run: composer install               # instala dependencias
-      - run: ./vendor/bin/phpunit           # roda os testes
-      - run: ./vendor/bin/phpstan analyse   # analise estatica
+      - checkout            # baixa o codigo
+      - setup PHP 8.3       # instala o PHP
+      - composer install    # instala dependencias
+      - phpunit             # roda os testes
+      - phpstan             # analise estatica
+
+  deploy:                   # Job 2 - CD
+    needs: testes           # so roda se "testes" passou
+    if: push na main        # so em push direto na main
+    steps:
+      - dispara deploy      # chama a API do Render via curl
 ```
+
+---
+
+## Conceitos do Git
+
+| Comando | O que faz |
+|---|---|
+| `git init` | Transforma a pasta em repositorio Git |
+| `git add .` | Adiciona todos os arquivos na staging area |
+| `git commit -m "msg"` | Salva um snapshot do codigo com mensagem |
+| `git push origin main` | Envia commits locais para o GitHub |
+| `git pull` | Baixa e aplica commits do GitHub na maquina |
+| `git checkout -b nome` | Cria e entra numa branch nova |
+| `git branch -d nome` | Apaga uma branch local |
+| `git push origin --delete nome` | Apaga uma branch remota |
+| `git status` | Mostra o que mudou e o que esta na staging area |
+| `git log --oneline` | Historico resumido de commits |
+
+### As 3 areas do Git
+
+```
+Working Directory     Staging Area       Repositorio
+(seus arquivos)       (sala de espera)   (historico)
+
+edita arquivos  ->  git add .  ->  git commit -m "..."
+```
+
+### O que e uma branch?
+
+```
+main  o---o---o---o          <- codigo oficial
+               \
+                o---o---o    <- feature/nova-funcao (isolada)
+```
+
+Branches permitem trabalhar em funcionalidades novas sem afetar o codigo principal. Apos terminar, abre-se um **Pull Request** para unir com a `main`.
 
 ---
 
@@ -128,47 +180,42 @@ jobs:
 
 | Termo | Significado |
 |---|---|
-| **Workflow** | O arquivo `.yml` inteiro — define todo o processo |
-| **Trigger** | O evento que dispara o workflow (`push`, `pull_request`) |
-| **Job** | Um conjunto de steps que rodam numa mesma maquina |
-| **Step** | Um comando ou action dentro de um job |
-| **Runner** | A maquina virtual onde o job roda (`ubuntu-latest`) |
-| **Action** | Um bloco reutilizavel (`uses: actions/checkout@v4`) |
-| **Secret** | Variavel sensiivel configurada no GitHub, nunca no codigo |
+| **Workflow** | O arquivo `.yml` inteiro |
+| **Trigger** | Evento que dispara o workflow (`push`, `pull_request`) |
+| **Job** | Conjunto de steps numa mesma maquina |
+| **Step** | Um comando ou action dentro do job |
+| **Runner** | Maquina virtual onde o job roda (`ubuntu-latest`) |
+| **Action** | Bloco reutilizavel (`uses: actions/checkout@v4`) |
+| **Secret** | Variavel sensivel configurada no GitHub, nunca no codigo |
+| **needs** | Dependencia entre jobs |
 
 ---
 
-## Como testar o pipeline quebrando de proposito
+## Configurando os Secrets no GitHub
 
-1. Abra [tests/CalculadoraTest.php](tests/CalculadoraTest.php)
-2. Mude `assertSame(5, $resultado)` para `assertSame(99, $resultado)`
-3. Faca `git push`
-4. Va na aba **Actions** do GitHub e veja o pipeline falhar em vermelho
-5. Reverta a mudanca, faca outro push e veja ficar verde
+Para o job de deploy funcionar pelo pipeline, adicione no GitHub:
 
-Isso e exatamente o que o CI faz na vida real: **impede que codigo quebrado chegue na branch principal.**
+```
+GitHub > Settings > Secrets and variables > Actions
 
----
-
-## Proximos passos
-
-- [ ] Adicionar coverage de testes (XDEBUG + `--coverage-html`)
-- [ ] Adicionar PHP CS Fixer para padronizar o estilo de codigo
-- [ ] Configurar um job de **deploy automatico** via SSH
-- [ ] Testar com **matrix** (rodar em PHP 8.2 e 8.3 ao mesmo tempo)
-- [ ] Adicionar badge de status do CI no README
-
----
-
-## Badge de Status
-
-Apos criar o repositorio no GitHub, adicione esta badge no topo do README (substitua `SEU_USUARIO` e `SEU_REPOSITORIO`):
-
-```markdown
-![CI](https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions/workflows/ci.yml/badge.svg)
+RENDER_SERVICE_ID  <- ID do servico no Render (Settings do servico)
+RENDER_API_KEY     <- API Key gerada em Account Settings > API Keys
 ```
 
-Ela fica assim: mostra verde quando o pipeline passa e vermelho quando falha.
+---
+
+## Como o CI bloqueia codigo com erro
+
+1. Crie uma branch: `git checkout -b feature/teste`
+2. Quebre um teste de proposito
+3. Faca push e abra um Pull Request
+4. O CI vai falhar e o GitHub vai mostrar:
+   ```
+   x All checks have failed
+     Merging is blocked until checks pass
+   ```
+5. Corrija o erro, faca outro push no mesmo PR
+6. O CI passa e o merge e liberado
 
 ---
 
@@ -179,3 +226,11 @@ Ela fica assim: mostra verde quando o pipeline passa e vermelho quando falha.
 - [PHPUnit 11](https://phpunit.de/)
 - [PHPStan](https://phpstan.org/)
 - [GitHub Actions](https://docs.github.com/en/actions)
+- [Render](https://render.com/)
+- [Docker](https://www.docker.com/)
+
+---
+
+## Badge de Status do CI
+
+![CI](https://github.com/WanderAmaral/estudant-ci-cd/actions/workflows/ci.yml/badge.svg)
